@@ -1,0 +1,10 @@
+[Unit]
+Description=Update the AMD pstate EPP to match power-profiles-daemon
+After=power-profiles-daemon.service
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/ppd-amd-pstate monitor
+
+[Install]
+WantedBy=multi-user.target
