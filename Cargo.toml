@@ -4,4 +4,4 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-zbus = "3.14.1"
+dbus = {version = "0.9.7", features = ["vendored"]}

@@ -10,4 +10,4 @@ cargo install dbus-codegen
 dbus-codegen-rust --system-bus \
 	-d net.hadess.PowerProfiles \
 	-p /net/hadess/PowerProfiles \
-	-o "$src_dir/powerprofiles.rs"
+	>"$src_dir/powerprofiles.rs"

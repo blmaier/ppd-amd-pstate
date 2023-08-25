@@ -1,6 +1,8 @@
+use dbus::blocking::Connection;
 use std::fs;
-use zbus::blocking::Connection;
-use zbus::{dbus_proxy, Result};
+use std::time::Duration;
+
+mod powerprofiles;
 
 fn amd_pstate_is_active() -> bool {
     match fs::read_to_string("/sys/devices/system/cpu/amd_pstate/status") {
@@ -125,23 +127,11 @@ fn cpux_epp_avail(cpu: usize) -> Vec<String> {
     avail.map(|x| String::from(x)).collect()
 }
 
-#[dbus_proxy(
-    interface = "net.hadess.PowerProfiles",
-    default_path = "/net/hadess/PowerProfiles"
-)]
-trait PowerProfiles {
-    #[dbus_proxy(property)]
-    fn active_profile(&self) -> Result<String>;
-}
-
 fn power_profile_active() -> String {
-    let connection = Connection::system().expect("A");
-    let proxy = PowerProfilesProxyBlocking::new(&connection).expect("A");
-    proxy.active_profile().expect("A")
-}
-
-fn monitor_power_profile() {
-    let connection = Connection::system().expect("A");
+    let c = Connection::new_system().expect("connect error");
+    let p = c.with_proxy("net.hadess.PowerProfiles", "/net/hadess/PowerProfiles", Duration::from_millis(5000));
+    use powerprofiles::NetHadessPowerProfiles;
+    p.active_profile().expect("get active profile error")
 }
 
 fn print_info() {
