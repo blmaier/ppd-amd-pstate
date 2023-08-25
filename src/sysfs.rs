@@ -118,7 +118,10 @@ mod tests {
             (0..=4).chain(6..=8).collect::<Vec<usize>>()
         );
         assert_eq!(cpu_parse_range("1-4"), (1..=4).collect::<Vec<usize>>());
-        assert_eq!(cpu_parse_range("1-1000"), (1..=1000).collect::<Vec<usize>>());
+        assert_eq!(
+            cpu_parse_range("1-1000"),
+            (1..=1000).collect::<Vec<usize>>()
+        );
         assert_ne!(cpu_parse_range("0-3"), (0..=4).collect::<Vec<usize>>());
     }
 }

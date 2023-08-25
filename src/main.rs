@@ -6,7 +6,11 @@ mod sysfs;
 
 fn power_profile_active() -> String {
     let c = Connection::new_system().expect("connect error");
-    let p = c.with_proxy("net.hadess.PowerProfiles", "/net/hadess/PowerProfiles", Duration::from_millis(5000));
+    let p = c.with_proxy(
+        "net.hadess.PowerProfiles",
+        "/net/hadess/PowerProfiles",
+        Duration::from_millis(5000),
+    );
     use powerprofiles::NetHadessPowerProfiles;
     p.active_profile().expect("get active profile error")
 }
@@ -49,6 +53,4 @@ fn assert_amd_pstate() {
 fn main() {
     print_info();
     assert_amd_pstate();
-
-
 }
