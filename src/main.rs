@@ -15,8 +15,8 @@ fn power_profile_active() -> String {
     p.active_profile().expect("get active profile error")
 }
 
-fn errstr<V: std::fmt::Display, E: std::fmt::Display>(res: Result<V, E>) -> String {
-    res.map_or_else(|e| e.to_string(), |v| v.to_string())
+fn str_or_unknown<V: std::string::ToString, E: std::fmt::Debug>(res: Result<V, E>) -> String {
+    res.map_or_else(|e| format!("Unknown ({:#?})", e), |v| v.to_string())
 }
 
 fn print_info() {
@@ -28,24 +28,20 @@ fn print_info() {
                 println!("cpu{}", cpu);
                 println!(
                     "  scaling driver: {}",
-                    errstr(sysfs::cpux_scaling_driver(cpu))
+                    str_or_unknown(sysfs::cpux_scaling_driver(cpu))
                 );
-                println!(
-                    "  scaling driver is epp: {}",
-                    sysfs::cpux_scaling_driver_is_epp(cpu)
-                );
-                println!("  epp active: {}", errstr(sysfs::cpux_epp_active(cpu)));
+                println!("  epp active: {}", str_or_unknown(sysfs::cpux_epp_active(cpu)));
                 println!(
                     "  epp avail: {}",
-                    errstr(sysfs::cpux_epp_avail(cpu).map(|e| e.join(", ")))
+                    str_or_unknown(sysfs::cpux_epp_avail(cpu).map(|e| e.join(" ")))
                 );
                 println!(
                     "  scaling governor active: {}",
-                    errstr(sysfs::cpux_scaling_governor_active(cpu))
+                    str_or_unknown(sysfs::cpux_scaling_governor_active(cpu))
                 );
                 println!(
                     "  scaling governor avail: {}",
-                    errstr(sysfs::cpux_scaling_governor_avail(cpu).map(|e| e.join(", ")))
+                    str_or_unknown(sysfs::cpux_scaling_governor_avail(cpu).map(|e| e.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(" ")))
                 );
                 break;
             }
@@ -59,7 +55,7 @@ fn assert_amd_pstate() {
         panic!("System is not using AMD pstate");
     };
     for cpu in sysfs::cpu_possible().expect("No CPUs found") {
-        if sysfs::cpux_scaling_driver(cpu).expect("No scaling driver") != "amd-pstate-epp" {
+        if sysfs::cpux_scaling_driver(cpu).expect("No scaling driver") != sysfs::ScalingDriver::AmdPstateEpp {
             panic!("cpu{} not using amd-pstate-epp scaling driver", cpu);
         };
     }
