@@ -95,26 +95,21 @@ pub mod cpu {
     }
 
     pub fn list_parse(cpu_string: &str) -> Result<Vec<Cpu>, Box<dyn Error>> {
-        use std::ops::RangeInclusive;
-
         let groups = cpu_string.split(",");
 
-        let range_maps = groups.map(|group| {
+        let mut cpu_iter: Box<dyn Iterator<Item=usize>> = Box::new(std::iter::empty::<usize>());
+        for group in groups {
             let mut range = group.split("-");
 
-            let left = range.next().ok_or("?")?.parse::<usize>()?;
+            let left = range.next().ok_or("Missing left index")?.parse::<usize>()?;
             let right = match range.next() {
                 Some(x) => x.parse::<usize>()?,
                 None => left,
             };
-            Ok(left..=right)
-        });
-        let ranges: Result<Vec<RangeInclusive<usize>>, Box<dyn Error>> = range_maps.collect();
-        Ok(ranges?
-            .into_iter()
-            .flatten()
-            .map(|v| Cpu::Index(v))
-            .collect())
+            cpu_iter = Box::new(cpu_iter.chain(left..=right));
+        }
+
+        Ok(cpu_iter.map(|v| Cpu::Index(v)).collect())
     }
 
     pub fn possible() -> Result<Vec<Cpu>, Box<dyn Error>> {
