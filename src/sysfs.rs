@@ -1,18 +1,39 @@
+use std::collections::hash_set::HashSet;
+use std::error::Error;
 use std::fs;
 use std::io;
-use std::error::Error;
+use std::str::FromStr;
+use strum::EnumCount;
+use strum_macros::{Display, EnumCount, EnumString, IntoStaticStr};
 
 fn sysfs_read(path: &str) -> io::Result<String> {
     Ok(String::from(fs::read_to_string(path)?.trim()))
 }
 
-fn sysfs_parse<T: std::str::FromStr>(path: &str) -> Result<T, Box<dyn Error>>
+fn sysfs_parse<T: FromStr>(path: &str) -> Result<T, Box<dyn Error>>
 where
-    <T as std::str::FromStr>::Err: Error + 'static,
+    <T as FromStr>::Err: Error + 'static,
 {
     Ok(sysfs_read(path)?.parse::<T>()?)
 }
 
+fn sysfs_parse_set<T>(path: &str) -> Result<HashSet<T>, Box<dyn Error>>
+where
+    T: FromStr,
+    T: Eq,
+    T: std::hash::Hash,
+    T: EnumCount,
+    <T as FromStr>::Err: Error + 'static,
+{
+    let raws = sysfs_read(path)?;
+    let mut set = HashSet::<T>::with_capacity(T::COUNT);
+    for raw in raws.split_whitespace() {
+        set.insert(raw.parse::<T>()?);
+    }
+    Ok(set)
+}
+
+#[allow(unused_macros)]
 macro_rules! sysfs_read {
     ($($tts:tt)*) => {
         sysfs_read(format!($($tts)*).as_str())
@@ -25,6 +46,12 @@ macro_rules! sysfs_parse {
     }
 }
 
+macro_rules! sysfs_parse_set {
+    ($type:ident, $($tts:tt)*) => {
+        sysfs_parse_set::<$type>(format!($($tts)*).as_str())
+    }
+}
+
 pub fn amd_pstate_is_active() -> bool {
     match sysfs_read("/sys/devices/system/cpu/amd_pstate/status") {
         Ok(s) => s == "active",
@@ -32,15 +59,20 @@ pub fn amd_pstate_is_active() -> bool {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[derive(strum::Display, strum::EnumString, strum::IntoStaticStr)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, IntoStaticStr, EnumCount,
+)]
 pub enum ScalingDriver {
     #[strum(serialize = "amd-pstate-epp")]
     AmdPstateEpp,
 }
 
 pub fn cpux_scaling_driver(cpu: usize) -> Result<ScalingDriver, Box<dyn Error>> {
-    sysfs_parse!(ScalingDriver, "/sys/devices/system/cpu/cpu{}/cpufreq/scaling_driver", cpu)
+    sysfs_parse!(
+        ScalingDriver,
+        "/sys/devices/system/cpu/cpu{}/cpufreq/scaling_driver",
+        cpu
+    )
 }
 
 pub fn cpu_parse_range(cpu_string: &str) -> Result<Vec<usize>, Box<dyn Error>> {
@@ -67,8 +99,9 @@ pub fn cpu_possible() -> Result<Vec<usize>, Box<dyn Error>> {
     cpu_parse_range(possible.as_str())
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[derive(strum::Display, strum::EnumString, strum::IntoStaticStr)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, IntoStaticStr, EnumCount,
+)]
 pub enum ScalingGovernor {
     #[strum(serialize = "powersave")]
     Powersave,
@@ -77,20 +110,24 @@ pub enum ScalingGovernor {
 }
 
 pub fn cpux_scaling_governor_active(cpu: usize) -> Result<ScalingGovernor, Box<dyn Error>> {
-    sysfs_parse!(ScalingGovernor, "/sys/devices/system/cpu/cpu{}/cpufreq/scaling_governor", cpu)
+    sysfs_parse!(
+        ScalingGovernor,
+        "/sys/devices/system/cpu/cpu{}/cpufreq/scaling_governor",
+        cpu
+    )
 }
 
-pub fn cpux_scaling_governor_avail(cpu: usize) -> Result<Vec<ScalingGovernor>, Box<dyn Error>> {
-    let govs_raw = sysfs_read!(
+pub fn cpux_scaling_governor_avail(cpu: usize) -> Result<HashSet<ScalingGovernor>, Box<dyn Error>> {
+    sysfs_parse_set!(
+        ScalingGovernor,
         "/sys/devices/system/cpu/cpu{}/cpufreq/scaling_available_governors",
         cpu
-    )?;
-    let govs_iter = govs_raw.split_whitespace().map(|x| x.parse::<ScalingGovernor>());
-    Ok(govs_iter.collect::<Result<Vec<ScalingGovernor>, strum::ParseError>>()?)
+    )
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[derive(strum::Display, strum::EnumString, strum::IntoStaticStr)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, IntoStaticStr, EnumCount,
+)]
 pub enum EnergyPerformancePreference {
     #[strum(serialize = "default")]
     Default,
@@ -101,23 +138,24 @@ pub enum EnergyPerformancePreference {
     #[strum(serialize = "balance_power")]
     BalancePower,
     #[strum(serialize = "power")]
-    Power
+    Power,
 }
-
 
 pub fn cpux_epp_active(cpu: usize) -> Result<EnergyPerformancePreference, Box<dyn Error>> {
-    sysfs_parse!(EnergyPerformancePreference, "/sys/devices/system/cpu/cpu{}/cpufreq/energy_performance_preference", cpu)
+    sysfs_parse!(
+        EnergyPerformancePreference,
+        "/sys/devices/system/cpu/cpu{}/cpufreq/energy_performance_preference",
+        cpu
+    )
 }
 
-//TODO next
 //TODO make macro to merge with scaling governors
-pub fn cpux_epp_avail(cpu: usize) -> io::Result<Vec<String>> {
-    let avail = sysfs_read!(
+pub fn cpux_epp_avail(cpu: usize) -> Result<HashSet<EnergyPerformancePreference>, Box<dyn Error>> {
+    sysfs_parse_set!(
+        EnergyPerformancePreference,
         "/sys/devices/system/cpu/cpu{}/cpufreq/energy_performance_available_preferences",
         cpu
-    )?;
-    let avail = avail.split_whitespace();
-    Ok(avail.map(|x| String::from(x)).collect())
+    )
 }
 
 #[cfg(test)]

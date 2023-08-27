@@ -5,4 +5,5 @@ edition = "2021"
 
 [dependencies]
 dbus = {version = "0.9.7", features = ["vendored"]}
-strum = { version = "0.25", features = ["derive"] }
+strum = "0.25"
+strum_macros = "0.25"

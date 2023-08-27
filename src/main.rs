@@ -30,10 +30,18 @@ fn print_info() {
                     "  scaling driver: {}",
                     str_or_unknown(sysfs::cpux_scaling_driver(cpu))
                 );
-                println!("  epp active: {}", str_or_unknown(sysfs::cpux_epp_active(cpu)));
+                println!(
+                    "  epp active: {}",
+                    str_or_unknown(sysfs::cpux_epp_active(cpu))
+                );
                 println!(
                     "  epp avail: {}",
-                    str_or_unknown(sysfs::cpux_epp_avail(cpu).map(|e| e.join(" ")))
+                    str_or_unknown(sysfs::cpux_epp_avail(cpu).map(|e| {
+                        e.iter()
+                            .map(|v| v.to_string())
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                    }))
                 );
                 println!(
                     "  scaling governor active: {}",
@@ -41,7 +49,12 @@ fn print_info() {
                 );
                 println!(
                     "  scaling governor avail: {}",
-                    str_or_unknown(sysfs::cpux_scaling_governor_avail(cpu).map(|e| e.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(" ")))
+                    str_or_unknown(sysfs::cpux_scaling_governor_avail(cpu).map(|e| {
+                        e.iter()
+                            .map(|v| v.to_string())
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                    }))
                 );
                 break;
             }
@@ -55,7 +68,9 @@ fn assert_amd_pstate() {
         panic!("System is not using AMD pstate");
     };
     for cpu in sysfs::cpu_possible().expect("No CPUs found") {
-        if sysfs::cpux_scaling_driver(cpu).expect("No scaling driver") != sysfs::ScalingDriver::AmdPstateEpp {
+        if sysfs::cpux_scaling_driver(cpu).expect("No scaling driver")
+            != sysfs::ScalingDriver::AmdPstateEpp
+        {
             panic!("cpu{} not using amd-pstate-epp scaling driver", cpu);
         };
     }
