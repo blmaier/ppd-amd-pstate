@@ -7,3 +7,4 @@ edition = "2021"
 dbus = {version = "0.9.7", features = ["vendored"]}
 strum = "0.25"
 strum_macros = "0.25"
+trait-set = "0.3.0"

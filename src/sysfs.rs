@@ -6,6 +6,29 @@ use std::str::FromStr;
 use strum::EnumCount;
 use strum_macros::{Display, EnumCount, EnumIter, EnumString, IntoStaticStr};
 
+trait_set::trait_set! {
+    trait SysfsEnum = std::fmt::Debug + Clone + Copy + PartialEq + Eq + FromStr + std::hash::Hash + std::fmt::Display + EnumCount + strum::IntoEnumIterator;
+}
+
+macro_rules! sysfs_enum {
+    ($i:item) => {
+        #[derive(
+            Debug,
+            Clone,
+            Copy,
+            PartialEq,
+            Eq,
+            Hash,
+            Display,
+            EnumString,
+            IntoStaticStr,
+            EnumCount,
+            EnumIter,
+        )]
+        $i
+    };
+}
+
 fn sysfs_read(path: &str) -> io::Result<String> {
     Ok(String::from(fs::read_to_string(path)?.trim()))
 }
@@ -17,12 +40,8 @@ where
     Ok(sysfs_read(path)?.parse::<T>()?)
 }
 
-fn sysfs_parse_hashset<T>(path: &str) -> Result<HashSet<T>, Box<dyn Error>>
+fn sysfs_parse_hashset<T: SysfsEnum>(path: &str) -> Result<HashSet<T>, Box<dyn Error>>
 where
-    T: FromStr,
-    T: Eq,
-    T: std::hash::Hash,
-    T: EnumCount,
     <T as FromStr>::Err: Error + 'static,
 {
     let raws = sysfs_read(path)?;
@@ -52,36 +71,10 @@ macro_rules! sysfs_parse_hashset {
     }
 }
 
-macro_rules! sysfs_enum {
-    ($i:item) => {
-        #[derive(
-            Debug,
-            Clone,
-            Copy,
-            PartialEq,
-            Eq,
-            Hash,
-            Display,
-            EnumString,
-            IntoStaticStr,
-            EnumCount,
-            EnumIter,
-        )]
-        $i
-    };
-}
-
 #[cfg(test)]
-fn test_sysfs_enum_parse<T>(tests: Vec<(&str, T)>) -> Result<(), Box<dyn Error>>
+fn test_sysfs_enum_parse<T: SysfsEnum>(tests: Vec<(&str, T)>) -> Result<(), Box<dyn Error>>
 where
-    T: PartialEq,
-    T: std::fmt::Debug,
-    T: FromStr,
-    T: Eq,
-    T: Copy,
-    T: std::hash::Hash,
     <T as FromStr>::Err: Error + 'static,
-    T: strum::IntoEnumIterator,
 {
     let mut variants = HashSet::<T>::new();
     // Check each string matches its variant
