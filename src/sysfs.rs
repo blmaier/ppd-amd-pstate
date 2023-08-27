@@ -87,13 +87,6 @@ pub mod cpu {
         }
     }
 
-    pub fn amd_pstate_is_active() -> bool {
-        match sysfs_read("/sys/devices/system/cpu/amd_pstate/status") {
-            Ok(s) => s == "active",
-            Err(_) => false,
-        }
-    }
-
     pub fn list_parse(cpu_string: &str) -> Result<Vec<Cpu>, Box<dyn Error>> {
         let groups = cpu_string.split(",");
 
@@ -115,6 +108,26 @@ pub mod cpu {
     pub fn possible() -> Result<Vec<Cpu>, Box<dyn Error>> {
         let possible = sysfs_read("/sys/devices/system/cpu/possible")?;
         list_parse(possible.as_str())
+    }
+
+    pub mod amd_pstate {
+        use super::*;
+
+        sysfs_enum! {
+            pub enum Status {
+                #[strum(serialize = "active")]
+                Active,
+                #[strum(serialize = "guided")]
+                Guided,
+                #[strum(serialize = "passive")]
+                Passive,
+            }
+        }
+
+
+        pub fn status() -> Result<Status, Box<dyn Error>> {
+            sysfs_parse::<Status>("/sys/devices/system/cpu/amd_pstate/status")
+        }
     }
 
     #[cfg(test)]
@@ -174,80 +187,88 @@ pub mod cpu {
             Ok(())
         }
     }
-}
 
-pub mod cpu_policy {
-    use super::cpu::Cpu;
-    use super::*;
+    pub mod policy {
+        use super::cpu::Cpu;
+        use super::*;
 
-    sysfs_enum! {
-        pub enum ScalingDriver {
-            #[strum(serialize = "amd-pstate-epp")]
-            AmdPstateEpp,
+        sysfs_enum! {
+            pub enum ScalingDriver {
+                #[strum(serialize = "amd-pstate-epp")]
+                AmdPstateEpp,
+            }
         }
-    }
 
-    pub fn cpux_scaling_driver(cpu: Cpu) -> Result<ScalingDriver, Box<dyn Error>> {
-        sysfs_parse!(ScalingDriver, "{}/cpufreq/scaling_driver", cpu.to_path())
-    }
-
-    sysfs_enum! {
-        pub enum ScalingGovernor {
-            #[strum(serialize = "powersave")]
-            Powersave,
-            #[strum(serialize = "performance")]
-            Performance,
+        pub fn cpux_scaling_driver(cpu: Cpu) -> Result<ScalingDriver, Box<dyn Error>> {
+            sysfs_parse!(ScalingDriver, "{}/cpufreq/scaling_driver", cpu.to_path())
         }
-    }
 
-    pub fn cpux_scaling_governor_active(cpu: Cpu) -> Result<ScalingGovernor, Box<dyn Error>> {
-        sysfs_parse!(
-            ScalingGovernor,
-            "{}/cpufreq/scaling_governor",
-            cpu.to_path()
-        )
-    }
-
-    pub fn cpux_scaling_governor_avail(
-        cpu: Cpu,
-    ) -> Result<HashSet<ScalingGovernor>, Box<dyn Error>> {
-        sysfs_parse_hashset!(
-            ScalingGovernor,
-            "{}/cpufreq/scaling_available_governors",
-            cpu.to_path()
-        )
-    }
-
-    sysfs_enum! {
-        pub enum EnergyPerformancePreference {
-            #[strum(serialize = "default")]
-            Default,
-            #[strum(serialize = "performance")]
-            Performance,
-            #[strum(serialize = "balance_performance")]
-            BalancePerformance,
-            #[strum(serialize = "balance_power")]
-            BalancePower,
-            #[strum(serialize = "power")]
-            Power,
+        sysfs_enum! {
+            pub enum ScalingGovernor {
+                #[strum(serialize = "conservative")]
+                Conservative,
+                #[strum(serialize = "ondemand")]
+                Ondemand,
+                #[strum(serialize = "performance")]
+                Performance,
+                #[strum(serialize = "powersave")]
+                Powersave,
+                #[strum(serialize = "schedutil")]
+                Schedutil,
+                #[strum(serialize = "userspace")]
+                Userspace,
+            }
         }
-    }
 
-    pub fn cpux_epp_active(cpu: Cpu) -> Result<EnergyPerformancePreference, Box<dyn Error>> {
-        sysfs_parse!(
-            EnergyPerformancePreference,
-            "{}/cpufreq/energy_performance_preference",
-            cpu.to_path()
-        )
-    }
+        pub fn cpux_scaling_governor_active(cpu: Cpu) -> Result<ScalingGovernor, Box<dyn Error>> {
+            sysfs_parse!(
+                ScalingGovernor,
+                "{}/cpufreq/scaling_governor",
+                cpu.to_path()
+            )
+        }
 
-    pub fn cpux_epp_avail(
-        cpu: Cpu,
-    ) -> Result<HashSet<EnergyPerformancePreference>, Box<dyn Error>> {
-        sysfs_parse_hashset!(
-            EnergyPerformancePreference,
-            "{}/cpufreq/energy_performance_available_preferences",
-            cpu.to_path()
-        )
+        pub fn cpux_scaling_governor_avail(
+            cpu: Cpu,
+        ) -> Result<HashSet<ScalingGovernor>, Box<dyn Error>> {
+            sysfs_parse_hashset!(
+                ScalingGovernor,
+                "{}/cpufreq/scaling_available_governors",
+                cpu.to_path()
+            )
+        }
+
+        sysfs_enum! {
+            pub enum EnergyPerformancePreference {
+                #[strum(serialize = "default")]
+                Default,
+                #[strum(serialize = "performance")]
+                Performance,
+                #[strum(serialize = "balance_performance")]
+                BalancePerformance,
+                #[strum(serialize = "balance_power")]
+                BalancePower,
+                #[strum(serialize = "power")]
+                Power,
+            }
+        }
+
+        pub fn cpux_epp_active(cpu: Cpu) -> Result<EnergyPerformancePreference, Box<dyn Error>> {
+            sysfs_parse!(
+                EnergyPerformancePreference,
+                "{}/cpufreq/energy_performance_preference",
+                cpu.to_path()
+            )
+        }
+
+        pub fn cpux_epp_avail(
+            cpu: Cpu,
+        ) -> Result<HashSet<EnergyPerformancePreference>, Box<dyn Error>> {
+            sysfs_parse_hashset!(
+                EnergyPerformancePreference,
+                "{}/cpufreq/energy_performance_available_preferences",
+                cpu.to_path()
+            )
+        }
     }
 }

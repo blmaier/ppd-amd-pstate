@@ -1,6 +1,6 @@
 use dbus::blocking::Connection;
-use std::time::Duration;
 use std::error::Error;
+use std::time::Duration;
 
 mod sysfs;
 #[rustfmt::skip]
@@ -17,12 +17,12 @@ fn power_profile_active() -> String {
     p.active_profile().expect("get active profile error")
 }
 
-fn str_or_unknown<V: std::string::ToString, E: std::fmt::Debug>(res: Result<V, E>) -> String {
-    res.map_or_else(|e| format!("Unknown ({:#?})", e), |v| v.to_string())
-}
-
 fn print_info() {
-    println!("amd pstate status: {}", sysfs::cpu::amd_pstate_is_active());
+    fn str_or_unknown<V: std::string::ToString, E: std::fmt::Debug>(res: Result<V, E>) -> String {
+        res.map_or_else(|e| format!("Unknown ({:#?})", e), |v| v.to_string())
+    }
+
+    println!("amd pstate status: {}", str_or_unknown(sysfs::cpu::amd_pstate::status()));
     println!("Power Profile: {}", power_profile_active());
     match sysfs::cpu::possible() {
         Ok(cpus) => {
@@ -30,15 +30,15 @@ fn print_info() {
                 println!("{}", cpu);
                 println!(
                     "  scaling driver: {}",
-                    str_or_unknown(sysfs::cpu_policy::cpux_scaling_driver(cpu))
+                    str_or_unknown(sysfs::cpu::policy::cpux_scaling_driver(cpu))
                 );
                 println!(
                     "  epp active: {}",
-                    str_or_unknown(sysfs::cpu_policy::cpux_epp_active(cpu))
+                    str_or_unknown(sysfs::cpu::policy::cpux_epp_active(cpu))
                 );
                 println!(
                     "  epp avail: {}",
-                    str_or_unknown(sysfs::cpu_policy::cpux_epp_avail(cpu).map(|e| {
+                    str_or_unknown(sysfs::cpu::policy::cpux_epp_avail(cpu).map(|e| {
                         e.iter()
                             .map(|v| v.to_string())
                             .collect::<Vec<_>>()
@@ -47,16 +47,18 @@ fn print_info() {
                 );
                 println!(
                     "  scaling governor active: {}",
-                    str_or_unknown(sysfs::cpu_policy::cpux_scaling_governor_active(cpu))
+                    str_or_unknown(sysfs::cpu::policy::cpux_scaling_governor_active(cpu))
                 );
                 println!(
                     "  scaling governor avail: {}",
-                    str_or_unknown(sysfs::cpu_policy::cpux_scaling_governor_avail(cpu).map(|e| {
-                        e.iter()
-                            .map(|v| v.to_string())
-                            .collect::<Vec<_>>()
-                            .join(" ")
-                    }))
+                    str_or_unknown(
+                        sysfs::cpu::policy::cpux_scaling_governor_avail(cpu).map(|e| {
+                            e.iter()
+                                .map(|v| v.to_string())
+                                .collect::<Vec<_>>()
+                                .join(" ")
+                        })
+                    )
                 );
                 break;
             }
@@ -66,14 +68,16 @@ fn print_info() {
 }
 
 fn is_amd_pstate() -> Result<(), Box<dyn Error>> {
-    if !sysfs::cpu::amd_pstate_is_active() {
+    use sysfs::cpu::amd_pstate::{status, Status};
+
+    if status()? != Status::Active {
         return Err("AMD PState not active".into());
     }
 
-    for cpu in sysfs::cpu::possible()? {
-        if sysfs::cpu_policy::cpux_scaling_driver(cpu)?
-            != sysfs::cpu_policy::ScalingDriver::AmdPstateEpp
-        {
+    use sysfs::cpu::{policy::cpux_scaling_driver, policy::ScalingDriver, possible};
+
+    for cpu in possible()? {
+        if cpux_scaling_driver(cpu)? != ScalingDriver::AmdPstateEpp {
             return Err("Not all CPUs in amd-pstate-epp mode".into());
         };
     }
