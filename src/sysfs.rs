@@ -90,7 +90,7 @@ pub mod cpu {
     pub fn list_parse(cpu_string: &str) -> Result<Vec<Cpu>, Box<dyn Error>> {
         let groups = cpu_string.split(",");
 
-        let mut cpu_iter: Box<dyn Iterator<Item=usize>> = Box::new(std::iter::empty::<usize>());
+        let mut cpu_iter: Box<dyn Iterator<Item = usize>> = Box::new(std::iter::empty::<usize>());
         for group in groups {
             let mut range = group.split("-");
 
@@ -123,7 +123,6 @@ pub mod cpu {
                 Passive,
             }
         }
-
 
         pub fn status() -> Result<Status, Box<dyn Error>> {
             sysfs_parse::<Status>("/sys/devices/system/cpu/amd_pstate/status")
@@ -160,30 +159,21 @@ pub mod cpu {
 
         #[test]
         fn test_list_parse() -> Result<(), Box<dyn Error>> {
-            assert_eq!(
-                list_parse("0-4")?,
-                to_cpus!(0, 4)
-            );
-            assert_eq!(
-                list_parse("0-4,6")?,
-                to_cpus!(0, 4, 6)
-            );
-            assert_eq!(
-                list_parse("0-4,6-8")?,
-                to_cpus!(0, 4, 6, 8)
-            );
-            assert_eq!(
-                list_parse("1-4")?,
-                to_cpus!(1, 4)
-            );
-            assert_eq!(
-                list_parse("1-1000")?,
-                to_cpus!(1, 1000)
-            );
-            assert_ne!(
-                list_parse("0-3")?,
-                to_cpus!(0, 4)
-            );
+            // Single element
+            assert_eq!(list_parse("0")?, to_cpus!(0));
+            assert_eq!(list_parse("1000")?, to_cpus!(1000));
+            // Two elements
+            assert_eq!(list_parse("0,1000")?, to_cpus!(0, 0, 1000));
+            assert_eq!(list_parse("1,1000")?, to_cpus!(1, 1, 1000));
+            // Single range
+            assert_eq!(list_parse("0-1000")?, to_cpus!(0, 1000));
+            assert_eq!(list_parse("1-1000")?, to_cpus!(1, 1000));
+            // Range and element
+            assert_eq!(list_parse("0-4,6")?, to_cpus!(0, 4, 6));
+            // Two ranges
+            assert_eq!(list_parse("0-4,6-8")?, to_cpus!(0, 4, 6, 8));
+            // Inverse test
+            assert_ne!(list_parse("0-3")?, to_cpus!(0, 4));
             Ok(())
         }
     }
