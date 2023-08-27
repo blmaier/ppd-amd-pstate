@@ -1,8 +1,9 @@
 use dbus::blocking::Connection;
 use std::time::Duration;
 
-mod powerprofiles;
 mod sysfs;
+#[rustfmt::skip]
+mod powerprofiles;
 
 fn power_profile_active() -> String {
     let c = Connection::new_system().expect("connect error");
