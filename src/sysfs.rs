@@ -4,7 +4,7 @@ use std::fs;
 use std::io;
 use std::str::FromStr;
 use strum::EnumCount;
-use strum_macros::{Display, EnumCount, EnumString, IntoStaticStr};
+use strum_macros::{Display, EnumCount, EnumIter, EnumString, IntoStaticStr};
 
 fn sysfs_read(path: &str) -> io::Result<String> {
     Ok(String::from(fs::read_to_string(path)?.trim()))
@@ -55,10 +55,43 @@ macro_rules! sysfs_parse_hashset {
 macro_rules! sysfs_enum {
     ($i:item) => {
         #[derive(
-            Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, IntoStaticStr, EnumCount,
+            Debug,
+            Clone,
+            Copy,
+            PartialEq,
+            Eq,
+            Hash,
+            Display,
+            EnumString,
+            IntoStaticStr,
+            EnumCount,
+            EnumIter,
         )]
         $i
     };
+}
+
+#[cfg(test)]
+fn test_sysfs_enum_parse<T>(tests: Vec<(&str, T)>) -> Result<(), Box<dyn Error>>
+where
+    T: PartialEq,
+    T: std::fmt::Debug,
+    T: FromStr,
+    T: Eq,
+    T: Copy,
+    T: std::hash::Hash,
+    <T as FromStr>::Err: Error + 'static,
+    T: strum::IntoEnumIterator,
+{
+    let mut variants = HashSet::<T>::new();
+    // Check each string matches its variant
+    for (string, value) in tests.iter() {
+        assert_eq!(string.parse::<T>()?, *value);
+        variants.insert(*value);
+    }
+    // Check all enum variants were tested
+    assert_eq!(variants, HashSet::<T>::from_iter(T::iter()));
+    Ok(())
 }
 
 pub mod cpu {
@@ -114,18 +147,29 @@ pub mod cpu {
         use super::*;
 
         sysfs_enum! {
+            #[strum(serialize_all = "kebab-case")]
             pub enum Status {
-                #[strum(serialize = "active")]
                 Active,
-                #[strum(serialize = "guided")]
                 Guided,
-                #[strum(serialize = "passive")]
                 Passive,
             }
         }
 
         pub fn status() -> Result<Status, Box<dyn Error>> {
             sysfs_parse::<Status>("/sys/devices/system/cpu/amd_pstate/status")
+        }
+
+        #[cfg(test)]
+        mod tests {
+            use super::*;
+            #[test]
+            fn test_status_parse() -> Result<(), Box<dyn Error>> {
+                test_sysfs_enum_parse(vec![
+                    ("active", Status::Active),
+                    ("guided", Status::Guided),
+                    ("passive", Status::Passive),
+                ])
+            }
         }
     }
 
@@ -183,9 +227,15 @@ pub mod cpu {
         use super::*;
 
         sysfs_enum! {
+            #[strum(serialize_all = "kebab-case")]
             pub enum ScalingDriver {
-                #[strum(serialize = "amd-pstate-epp")]
+                AcpiCpufreq,
+                AmdPstate,
                 AmdPstateEpp,
+                CppcCpufreq,
+                IntelCpufreq,
+                IntelPstate,
+                SpeedstepLib,
             }
         }
 
@@ -194,18 +244,13 @@ pub mod cpu {
         }
 
         sysfs_enum! {
+            #[strum(serialize_all = "kebab-case")]
             pub enum ScalingGovernor {
-                #[strum(serialize = "conservative")]
                 Conservative,
-                #[strum(serialize = "ondemand")]
                 Ondemand,
-                #[strum(serialize = "performance")]
                 Performance,
-                #[strum(serialize = "powersave")]
                 Powersave,
-                #[strum(serialize = "schedutil")]
                 Schedutil,
-                #[strum(serialize = "userspace")]
                 Userspace,
             }
         }
@@ -229,16 +274,12 @@ pub mod cpu {
         }
 
         sysfs_enum! {
+            #[strum(serialize_all = "snake_case")]
             pub enum EnergyPerformancePreference {
-                #[strum(serialize = "default")]
-                Default,
-                #[strum(serialize = "performance")]
-                Performance,
-                #[strum(serialize = "balance_performance")]
                 BalancePerformance,
-                #[strum(serialize = "balance_power")]
                 BalancePower,
-                #[strum(serialize = "power")]
+                Default,
+                Performance,
                 Power,
             }
         }
@@ -259,6 +300,36 @@ pub mod cpu {
                 "{}/cpufreq/energy_performance_available_preferences",
                 cpu.to_path()
             )
+        }
+
+        #[cfg(test)]
+        mod tests {
+            use super::*;
+
+            #[test]
+            fn test_scaling_driver_parse() -> Result<(), Box<dyn Error>> {
+                test_sysfs_enum_parse(vec![
+                    ("acpi-cpufreq", ScalingDriver::AcpiCpufreq),
+                    ("amd-pstate", ScalingDriver::AmdPstate),
+                    ("amd-pstate-epp", ScalingDriver::AmdPstateEpp),
+                    ("cppc-cpufreq", ScalingDriver::CppcCpufreq),
+                    ("intel-cpufreq", ScalingDriver::IntelCpufreq),
+                    ("intel-pstate", ScalingDriver::IntelPstate),
+                    ("speedstep-lib", ScalingDriver::SpeedstepLib),
+                ])
+            }
+
+            #[test]
+            fn test_scaling_governor_parse() -> Result<(), Box<dyn Error>> {
+                test_sysfs_enum_parse(vec![
+                    ("conservative", ScalingGovernor::Conservative),
+                    ("ondemand", ScalingGovernor::Ondemand),
+                    ("performance", ScalingGovernor::Performance),
+                    ("powersave", ScalingGovernor::Powersave),
+                    ("schedutil", ScalingGovernor::Schedutil),
+                    ("userspace", ScalingGovernor::Userspace),
+                ])
+            }
         }
     }
 }
