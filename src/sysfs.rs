@@ -17,7 +17,7 @@ where
     Ok(sysfs_read(path)?.parse::<T>()?)
 }
 
-fn sysfs_parse_set<T>(path: &str) -> Result<HashSet<T>, Box<dyn Error>>
+fn sysfs_parse_hashset<T>(path: &str) -> Result<HashSet<T>, Box<dyn Error>>
 where
     T: FromStr,
     T: Eq,
@@ -46,143 +46,213 @@ macro_rules! sysfs_parse {
     }
 }
 
-macro_rules! sysfs_parse_set {
+macro_rules! sysfs_parse_hashset {
     ($type:ident, $($tts:tt)*) => {
-        sysfs_parse_set::<$type>(format!($($tts)*).as_str())
-    }
-}
-
-pub fn amd_pstate_is_active() -> bool {
-    match sysfs_read("/sys/devices/system/cpu/amd_pstate/status") {
-        Ok(s) => s == "active",
-        Err(_) => false,
+        sysfs_parse_hashset::<$type>(format!($($tts)*).as_str())
     }
 }
 
 macro_rules! sysfs_enum {
     ($i:item) => {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, IntoStaticStr, EnumCount)]
+        #[derive(
+            Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, IntoStaticStr, EnumCount,
+        )]
         $i
-    }
+    };
 }
 
-sysfs_enum! {
-    pub enum ScalingDriver {
-        #[strum(serialize = "amd-pstate-epp")]
-        AmdPstateEpp,
-    }
-}
-
-pub fn cpux_scaling_driver(cpu: usize) -> Result<ScalingDriver, Box<dyn Error>> {
-    sysfs_parse!(
-        ScalingDriver,
-        "/sys/devices/system/cpu/cpu{}/cpufreq/scaling_driver",
-        cpu
-    )
-}
-
-pub fn cpu_parse_range(cpu_string: &str) -> Result<Vec<usize>, Box<dyn Error>> {
-    use std::ops::RangeInclusive;
-
-    let groups = cpu_string.split(",");
-
-    let range_maps = groups.map(|group| {
-        let mut range = group.split("-");
-
-        let left = range.next().ok_or("?")?.parse::<usize>()?;
-        let right = match range.next() {
-            Some(x) => x.parse::<usize>()?,
-            None => left,
-        };
-        Ok(left..=right)
-    });
-    let ranges: Result<Vec<RangeInclusive<usize>>, Box<dyn Error>> = range_maps.collect();
-    Ok(ranges?.into_iter().flatten().collect())
-}
-
-pub fn cpu_possible() -> Result<Vec<usize>, Box<dyn Error>> {
-    let possible = sysfs_read("/sys/devices/system/cpu/possible")?;
-    cpu_parse_range(possible.as_str())
-}
-
-sysfs_enum! {
-    pub enum ScalingGovernor {
-        #[strum(serialize = "powersave")]
-        Powersave,
-        #[strum(serialize = "performance")]
-        Performance,
-    }
-}
-
-pub fn cpux_scaling_governor_active(cpu: usize) -> Result<ScalingGovernor, Box<dyn Error>> {
-    sysfs_parse!(
-        ScalingGovernor,
-        "/sys/devices/system/cpu/cpu{}/cpufreq/scaling_governor",
-        cpu
-    )
-}
-
-pub fn cpux_scaling_governor_avail(cpu: usize) -> Result<HashSet<ScalingGovernor>, Box<dyn Error>> {
-    sysfs_parse_set!(
-        ScalingGovernor,
-        "/sys/devices/system/cpu/cpu{}/cpufreq/scaling_available_governors",
-        cpu
-    )
-}
-
-sysfs_enum! {
-    pub enum EnergyPerformancePreference {
-        #[strum(serialize = "default")]
-        Default,
-        #[strum(serialize = "performance")]
-        Performance,
-        #[strum(serialize = "balance_performance")]
-        BalancePerformance,
-        #[strum(serialize = "balance_power")]
-        BalancePower,
-        #[strum(serialize = "power")]
-        Power,
-    }
-}
-
-pub fn cpux_epp_active(cpu: usize) -> Result<EnergyPerformancePreference, Box<dyn Error>> {
-    sysfs_parse!(
-        EnergyPerformancePreference,
-        "/sys/devices/system/cpu/cpu{}/cpufreq/energy_performance_preference",
-        cpu
-    )
-}
-
-//TODO make macro to merge with scaling governors
-pub fn cpux_epp_avail(cpu: usize) -> Result<HashSet<EnergyPerformancePreference>, Box<dyn Error>> {
-    sysfs_parse_set!(
-        EnergyPerformancePreference,
-        "/sys/devices/system/cpu/cpu{}/cpufreq/energy_performance_available_preferences",
-        cpu
-    )
-}
-
-#[cfg(test)]
-mod tests {
+pub mod cpu {
     use super::*;
 
-    #[test]
-    fn test_cpu_parse_range() -> Result<(), Box<dyn Error>> {
-        assert_eq!(cpu_parse_range("0-4")?, (0..=4).collect::<Vec<usize>>());
-        assert_eq!(
-            cpu_parse_range("0-4,6")?,
-            (0..=4).chain(6..=6).collect::<Vec<usize>>()
-        );
-        assert_eq!(
-            cpu_parse_range("0-4,6-8")?,
-            (0..=4).chain(6..=8).collect::<Vec<usize>>()
-        );
-        assert_eq!(cpu_parse_range("1-4")?, (1..=4).collect::<Vec<usize>>());
-        assert_eq!(
-            cpu_parse_range("1-1000")?,
-            (1..=1000).collect::<Vec<usize>>()
-        );
-        assert_ne!(cpu_parse_range("0-3")?, (0..=4).collect::<Vec<usize>>());
-        Ok(())
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum Cpu {
+        Index(usize),
+    }
+
+    impl Cpu {
+        fn to_index(&self) -> usize {
+            match self {
+                Cpu::Index(x) => *x,
+            }
+        }
+
+        pub fn to_path(&self) -> String {
+            format!("/sys/devices/system/cpu/cpu{}", self.to_index())
+        }
+    }
+
+    impl std::fmt::Display for Cpu {
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            write!(f, "cpu{}", self.to_index())
+        }
+    }
+
+    pub fn amd_pstate_is_active() -> bool {
+        match sysfs_read("/sys/devices/system/cpu/amd_pstate/status") {
+            Ok(s) => s == "active",
+            Err(_) => false,
+        }
+    }
+
+    pub fn list_parse(cpu_string: &str) -> Result<Vec<Cpu>, Box<dyn Error>> {
+        use std::ops::RangeInclusive;
+
+        let groups = cpu_string.split(",");
+
+        let range_maps = groups.map(|group| {
+            let mut range = group.split("-");
+
+            let left = range.next().ok_or("?")?.parse::<usize>()?;
+            let right = match range.next() {
+                Some(x) => x.parse::<usize>()?,
+                None => left,
+            };
+            Ok(left..=right)
+        });
+        let ranges: Result<Vec<RangeInclusive<usize>>, Box<dyn Error>> = range_maps.collect();
+        Ok(ranges?
+            .into_iter()
+            .flatten()
+            .map(|v| Cpu::Index(v))
+            .collect())
+    }
+
+    pub fn possible() -> Result<Vec<Cpu>, Box<dyn Error>> {
+        let possible = sysfs_read("/sys/devices/system/cpu/possible")?;
+        list_parse(possible.as_str())
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        macro_rules! to_cpu_chains {
+            ($l:expr) => {
+                {
+                    ($l..=$l)
+                }
+            };
+            ($l:expr, $r:expr) => {
+                {
+                    ($l..=$r)
+                }
+            };
+            ($l:expr, $r:expr, $($es:expr),+) => {
+                ($l..=$r).chain(to_cpu_chains! { $($es),+ } )
+            };
+        }
+
+        macro_rules! to_cpus {
+            ($($es:expr),+) => {
+                {
+                    to_cpu_chains! { $($es),+ }.map(|v| Cpu::Index(v)).collect::<Vec<Cpu>>()
+                }
+            };
+        }
+
+        #[test]
+        fn test_list_parse() -> Result<(), Box<dyn Error>> {
+            assert_eq!(
+                list_parse("0-4")?,
+                to_cpus!(0, 4)
+            );
+            assert_eq!(
+                list_parse("0-4,6")?,
+                to_cpus!(0, 4, 6)
+            );
+            assert_eq!(
+                list_parse("0-4,6-8")?,
+                to_cpus!(0, 4, 6, 8)
+            );
+            assert_eq!(
+                list_parse("1-4")?,
+                to_cpus!(1, 4)
+            );
+            assert_eq!(
+                list_parse("1-1000")?,
+                to_cpus!(1, 1000)
+            );
+            assert_ne!(
+                list_parse("0-3")?,
+                to_cpus!(0, 4)
+            );
+            Ok(())
+        }
+    }
+}
+
+pub mod cpu_policy {
+    use super::cpu::Cpu;
+    use super::*;
+
+    sysfs_enum! {
+        pub enum ScalingDriver {
+            #[strum(serialize = "amd-pstate-epp")]
+            AmdPstateEpp,
+        }
+    }
+
+    pub fn cpux_scaling_driver(cpu: Cpu) -> Result<ScalingDriver, Box<dyn Error>> {
+        sysfs_parse!(ScalingDriver, "{}/cpufreq/scaling_driver", cpu.to_path())
+    }
+
+    sysfs_enum! {
+        pub enum ScalingGovernor {
+            #[strum(serialize = "powersave")]
+            Powersave,
+            #[strum(serialize = "performance")]
+            Performance,
+        }
+    }
+
+    pub fn cpux_scaling_governor_active(cpu: Cpu) -> Result<ScalingGovernor, Box<dyn Error>> {
+        sysfs_parse!(
+            ScalingGovernor,
+            "{}/cpufreq/scaling_governor",
+            cpu.to_path()
+        )
+    }
+
+    pub fn cpux_scaling_governor_avail(
+        cpu: Cpu,
+    ) -> Result<HashSet<ScalingGovernor>, Box<dyn Error>> {
+        sysfs_parse_hashset!(
+            ScalingGovernor,
+            "{}/cpufreq/scaling_available_governors",
+            cpu.to_path()
+        )
+    }
+
+    sysfs_enum! {
+        pub enum EnergyPerformancePreference {
+            #[strum(serialize = "default")]
+            Default,
+            #[strum(serialize = "performance")]
+            Performance,
+            #[strum(serialize = "balance_performance")]
+            BalancePerformance,
+            #[strum(serialize = "balance_power")]
+            BalancePower,
+            #[strum(serialize = "power")]
+            Power,
+        }
+    }
+
+    pub fn cpux_epp_active(cpu: Cpu) -> Result<EnergyPerformancePreference, Box<dyn Error>> {
+        sysfs_parse!(
+            EnergyPerformancePreference,
+            "{}/cpufreq/energy_performance_preference",
+            cpu.to_path()
+        )
+    }
+
+    pub fn cpux_epp_avail(
+        cpu: Cpu,
+    ) -> Result<HashSet<EnergyPerformancePreference>, Box<dyn Error>> {
+        sysfs_parse_hashset!(
+            EnergyPerformancePreference,
+            "{}/cpufreq/energy_performance_available_preferences",
+            cpu.to_path()
+        )
     }
 }
