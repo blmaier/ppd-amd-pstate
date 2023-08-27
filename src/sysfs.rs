@@ -59,12 +59,18 @@ pub fn amd_pstate_is_active() -> bool {
     }
 }
 
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, IntoStaticStr, EnumCount,
-)]
-pub enum ScalingDriver {
-    #[strum(serialize = "amd-pstate-epp")]
-    AmdPstateEpp,
+macro_rules! sysfs_enum {
+    ($i:item) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, IntoStaticStr, EnumCount)]
+        $i
+    }
+}
+
+sysfs_enum! {
+    pub enum ScalingDriver {
+        #[strum(serialize = "amd-pstate-epp")]
+        AmdPstateEpp,
+    }
 }
 
 pub fn cpux_scaling_driver(cpu: usize) -> Result<ScalingDriver, Box<dyn Error>> {
@@ -99,14 +105,13 @@ pub fn cpu_possible() -> Result<Vec<usize>, Box<dyn Error>> {
     cpu_parse_range(possible.as_str())
 }
 
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, IntoStaticStr, EnumCount,
-)]
-pub enum ScalingGovernor {
-    #[strum(serialize = "powersave")]
-    Powersave,
-    #[strum(serialize = "performance")]
-    Performance,
+sysfs_enum! {
+    pub enum ScalingGovernor {
+        #[strum(serialize = "powersave")]
+        Powersave,
+        #[strum(serialize = "performance")]
+        Performance,
+    }
 }
 
 pub fn cpux_scaling_governor_active(cpu: usize) -> Result<ScalingGovernor, Box<dyn Error>> {
@@ -125,20 +130,19 @@ pub fn cpux_scaling_governor_avail(cpu: usize) -> Result<HashSet<ScalingGovernor
     )
 }
 
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, IntoStaticStr, EnumCount,
-)]
-pub enum EnergyPerformancePreference {
-    #[strum(serialize = "default")]
-    Default,
-    #[strum(serialize = "performance")]
-    Performance,
-    #[strum(serialize = "balance_performance")]
-    BalancePerformance,
-    #[strum(serialize = "balance_power")]
-    BalancePower,
-    #[strum(serialize = "power")]
-    Power,
+sysfs_enum! {
+    pub enum EnergyPerformancePreference {
+        #[strum(serialize = "default")]
+        Default,
+        #[strum(serialize = "performance")]
+        Performance,
+        #[strum(serialize = "balance_performance")]
+        BalancePerformance,
+        #[strum(serialize = "balance_power")]
+        BalancePower,
+        #[strum(serialize = "power")]
+        Power,
+    }
 }
 
 pub fn cpux_epp_active(cpu: usize) -> Result<EnergyPerformancePreference, Box<dyn Error>> {
