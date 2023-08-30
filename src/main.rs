@@ -5,6 +5,9 @@ use std::error::Error;
 use std::time::Duration;
 use strum_macros::{Display, EnumCount, EnumIter, EnumString, IntoStaticStr};
 
+#[doc(inline)]
+pub use std;
+
 mod sysfs;
 #[rustfmt::skip]
 mod powerprofiles;
