@@ -22,7 +22,10 @@ fn print_info() {
         res.map_or_else(|e| format!("Unknown ({:#?})", e), |v| v.to_string())
     }
 
-    println!("amd pstate status: {}", str_or_unknown(sysfs::cpu::amd_pstate::status()));
+    println!(
+        "amd pstate status: {}",
+        str_or_unknown(sysfs::cpu::amd_pstate::status())
+    );
     println!("Power Profile: {}", power_profile_active());
     match sysfs::cpu::possible() {
         Ok(cpus) => {
