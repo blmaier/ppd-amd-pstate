@@ -1,20 +1,32 @@
 use dbus::blocking::Connection;
 use std::error::Error;
 use std::time::Duration;
+use strum_macros::{Display, EnumCount, EnumIter, EnumString, IntoStaticStr};
 
 mod sysfs;
 #[rustfmt::skip]
 mod powerprofiles;
 
-fn power_profile_active() -> String {
-    let c = Connection::new_system().expect("connect error");
-    let p = c.with_proxy(
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, IntoStaticStr, EnumCount, EnumIter,
+)]
+#[strum(serialize_all = "kebab-case")]
+pub enum Profile {
+    PowerSaver,
+    Balanced,
+    Performance,
+}
+
+fn power_profile_active() -> Profile {
+    let conn = Connection::new_system().expect("connect error");
+    let proxy = conn.with_proxy(
         "net.hadess.PowerProfiles",
         "/net/hadess/PowerProfiles",
         Duration::from_millis(5000),
     );
     use powerprofiles::NetHadessPowerProfiles;
-    p.active_profile().expect("get active profile error")
+    let profile = proxy.active_profile().expect("get active profile error");
+    profile.parse::<Profile>().expect("Failed to parse profile")
 }
 
 fn print_info() {
