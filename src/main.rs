@@ -1,4 +1,6 @@
 use dbus::blocking::Connection;
+use dbus::message::MatchRule;
+use dbus::Message;
 use std::error::Error;
 use std::time::Duration;
 use strum_macros::{Display, EnumCount, EnumIter, EnumString, IntoStaticStr};
@@ -27,6 +29,50 @@ fn power_profile_active() -> Profile {
     use powerprofiles::NetHadessPowerProfiles;
     let profile = proxy.active_profile().expect("get active profile error");
     profile.parse::<Profile>().expect("Failed to parse profile")
+}
+
+fn handle_message(msg: &Message) {
+    println!("Message: {:?}", msg);
+    update_profile();
+}
+
+fn power_profile_monitor() {
+    use dbus::channel::MatchingReceiver;
+
+    let conn = Connection::new_system().expect("connect error");
+
+    let path = dbus::strings::Path::new("/net/hadess/PowerProfiles").expect("Invalid dbus path");
+    let member = dbus::strings::Member::new("Set").expect("Invalid dbus member");
+    let rule = MatchRule::new().with_path(path).with_member(member);
+
+    let proxy = conn.with_proxy(
+        "org.freedesktop.DBus",
+        "/org/freedesktop/DBus",
+        Duration::from_millis(5000),
+    );
+    let result: Result<(), dbus::Error> = proxy.method_call(
+        "org.freedesktop.DBus.Monitoring",
+        "BecomeMonitor",
+        (vec![rule.match_str()], 0u32),
+    );
+
+    result.expect("Failed to open monitor");
+
+    conn.start_receive(
+        rule,
+        Box::new(|msg, _| {
+            handle_message(&msg);
+            true
+        }),
+    );
+
+    loop {
+        conn.process(Duration::from_millis(1000)).unwrap();
+    }
+}
+
+fn update_profile() {
+    let _active = power_profile_active();
 }
 
 fn print_info() {
@@ -103,4 +149,6 @@ fn is_amd_pstate() -> Result<(), Box<dyn Error>> {
 fn main() {
     print_info();
     is_amd_pstate().expect("AMD-pstate not active");
+    update_profile();
+    power_profile_monitor();
 }
