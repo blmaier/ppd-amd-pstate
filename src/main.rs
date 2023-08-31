@@ -1,6 +1,5 @@
 use dbus::blocking::Connection;
 use dbus::message::MatchRule;
-use dbus::Message;
 use std::error::Error;
 use std::time::Duration;
 use strum_macros::{Display, EnumCount, EnumIter, EnumString, IntoStaticStr};
@@ -34,11 +33,6 @@ fn power_profile_active() -> Profile {
     profile.parse::<Profile>().expect("Failed to parse profile")
 }
 
-fn handle_message(msg: &Message) {
-    println!("Message: {:?}", msg);
-    update_profile();
-}
-
 fn power_profile_monitor() {
     use dbus::channel::MatchingReceiver;
 
@@ -61,10 +55,17 @@ fn power_profile_monitor() {
 
     result.expect("Failed to open monitor");
 
+    let mut profile = power_profile_active();
+    power_profile_active_set(profile).expect("Failed to set profile");
+
     conn.start_receive(
         rule,
-        Box::new(|msg, _| {
-            handle_message(&msg);
+        Box::new(move |_msg, _| {
+            let profile_new = power_profile_active();
+            if profile != profile_new {
+                power_profile_active_set(profile_new).expect("Failed to set profile");
+                profile = profile_new;
+            }
             true
         }),
     );
@@ -74,8 +75,27 @@ fn power_profile_monitor() {
     }
 }
 
-fn update_profile() {
-    let _active = power_profile_active();
+fn power_profile_active_set(profile: Profile) -> Result<(), Box<dyn Error + 'static>> {
+    let gov = sysfs::cpu::policy::ScalingGovernor::Powersave;
+    let epp_mode = match profile {
+        Profile::PowerSaver => sysfs::cpu::policy::EnergyPerformancePreference::Power,
+        Profile::Balanced => sysfs::cpu::policy::EnergyPerformancePreference::BalancePerformance,
+        Profile::Performance => sysfs::cpu::policy::EnergyPerformancePreference::Performance,
+    };
+
+    for cpu in sysfs::cpu::possible()? {
+        let gov_now = sysfs::cpu::policy::cpux_scaling_governor_active(cpu)?;
+        if gov != gov_now {
+            println!("Would reconfigure gov {} for {}", gov, cpu);
+            //TODO Set scaling governor
+        }
+        let epp_mode_now = sysfs::cpu::policy::cpux_epp_active(cpu)?;
+        if epp_mode != epp_mode_now {
+            println!("Would reconfigure epp {} for {}", epp_mode_now, cpu);
+            //TODO Set scaling governor
+        }
+    }
+    Ok(())
 }
 
 fn print_info() {
@@ -152,6 +172,5 @@ fn is_amd_pstate() -> Result<(), Box<dyn Error>> {
 fn main() {
     print_info();
     is_amd_pstate().expect("AMD-pstate not active");
-    update_profile();
     power_profile_monitor();
 }
