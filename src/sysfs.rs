@@ -96,13 +96,13 @@ pub mod cpu {
     }
 
     impl Cpu {
-        fn to_index(&self) -> usize {
+        fn to_index(self) -> usize {
             match self {
-                Cpu::Index(x) => *x,
+                Cpu::Index(x) => x,
             }
         }
 
-        pub fn to_path(&self) -> String {
+        pub fn to_path(self) -> String {
             format!("/sys/devices/system/cpu/cpu{}", self.to_index())
         }
     }
@@ -114,11 +114,11 @@ pub mod cpu {
     }
 
     pub fn list_parse(cpu_string: &str) -> Result<Vec<Cpu>, Box<dyn Error>> {
-        let groups = cpu_string.split(",");
+        let groups = cpu_string.split(',');
 
         let mut cpu_iter: Box<dyn Iterator<Item = usize>> = Box::new(std::iter::empty::<usize>());
         for group in groups {
-            let mut range = group.split("-");
+            let mut range = group.split('-');
 
             let left = range.next().ok_or("Missing left index")?.parse::<usize>()?;
             let right = match range.next() {
@@ -128,7 +128,7 @@ pub mod cpu {
             cpu_iter = Box::new(cpu_iter.chain(left..=right));
         }
 
-        Ok(cpu_iter.map(|v| Cpu::Index(v)).collect())
+        Ok(cpu_iter.map(Cpu::Index).collect())
     }
 
     pub fn possible() -> Result<Vec<Cpu>, Box<dyn Error>> {

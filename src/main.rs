@@ -110,7 +110,7 @@ fn print_info() {
     println!("Power Profile: {}", power_profile_active());
     match sysfs::cpu::possible() {
         Ok(cpus) => {
-            for cpu in cpus.into_iter() {
+            if let Some(cpu) = cpus.into_iter().next() {
                 println!("{}", cpu);
                 println!(
                     "  scaling driver: {}",
@@ -144,7 +144,6 @@ fn print_info() {
                         })
                     )
                 );
-                break;
             }
         }
         Err(e) => println!("No CPUs found: {:#?}", e),
